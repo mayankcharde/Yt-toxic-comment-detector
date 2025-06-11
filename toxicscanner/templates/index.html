@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToxiScan - AI Comment Analyzer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Exo:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="loader-container" id="fetchLoader">
+        <div class="loader"></div>
+        <div class="loader-text">Fetching Comments...</div>
+    </div>
+
+    <div class="loader-container" id="processLoader">
+        <div class="loader"></div>
+        <div class="loader-text">Processing Comments...</div>
+    </div>
+
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-brand">
+                <div class="logo-glow">🧬</div>
+                <h1>ToxiScan</h1>
+            </div>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/about">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="glow-text-hero">ToxiScan</h1>
+                <p class="subtitle">Real-Time YouTube Comment Toxicity Analyzer</p>
+                <div class="tech-badge">Powered by AI</div>
+            </div>
+        </section>
+
+        <section id="analyze" class="analyzer-section">
+            <div class="container">
+                {% if error %}
+                <div class="error-message">
+                    {{ error }}
+                </div>
+                {% endif %}
+                
+                <div class="input-card glow-card">
+                    <h2>Analyze YouTube Comments</h2>
+                    <form action="/fetch-comments" method="POST" id="fetchForm">
+                        <div class="input-group">
+                            <input type="text" name="video_url" placeholder="Paste YouTube URL here..." required>
+                            <button type="submit" class="cyber-button">
+                                <span>Analyze</span>
+                                <div class="cyber-button__glitch"></div>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {% if comments %}
+                <div class="comments-preview">
+                    <h3>Fetched Comments ({{ comments|length }})</h3>
+                    <div class="comments-list">
+                        {% for c in comments %}
+                            <div class="comment-item glow-card">{{ c }}</div>
+                        {% endfor %}
+                    </div>
+                    <form action="/analyze-toxicity" method="POST" id="analysisForm">
+                        <input type="hidden" name="analyze" value="1">
+                        <button type="submit" class="cyber-button">Process Comments</button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <script>
+                    const fetchLoader = document.getElementById('fetchLoader');
+                    const processLoader = document.getElementById('processLoader');
+                    const fetchForm = document.getElementById('fetchForm');
+                    const analysisForm = document.getElementById('analysisForm');
+
+                    fetchForm.addEventListener('submit', function() {
+                        fetchLoader.style.display = 'flex';
+                    });
+
+                    if (analysisForm) {
+                        analysisForm.addEventListener('submit', function() {
+                            processLoader.style.display = 'flex';
+                        });
+                    }
+                </script>
+
+                {% if toxic_results %}
+                <div class="toxicity-results">
+                    <h3>Toxicity Analysis</h3>
+                    <div class="filter-section">
+                        <button id="showToxicBtn" class="cyber-button filter-btn">Show Toxic Comments Only</button>
+                    </div>
+                    <div class="results-grid" id="resultsGrid">
+                        {% for comment, score, level in toxic_results %}
+                            <div class="result-card {{ level|lower|replace(' ', '-') }}"
+                                 data-toxicity="{{ level }}">
+                                <div class="toxicity-badge">{{ level }}</div>
+                                <div class="toxicity-score">Score: {{ "%.2f"|format(score) }}</div>
+                                <div class="comment-text">{{ comment }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <script>
+                    let showingToxicOnly = false;
+                    const toxicBtn = document.getElementById('showToxicBtn');
+                    const allCards = document.querySelectorAll('.result-card');
+
+                    function isToxicComment(card) {
+                        const toxicityLevel = card.dataset.toxicity;
+                        return toxicityLevel === 'Severely Toxic' || toxicityLevel === 'Toxic';
+                    }
+
+                    function updateVisibility() {
+                        allCards.forEach(card => {
+                            if (showingToxicOnly) {
+                                card.style.display = isToxicComment(card) ? 'block' : 'none';
+                            } else {
+                                card.style.display = 'block';
+                            }
+                        });
+                    }
+
+                    toxicBtn.addEventListener('click', function() {
+                        showingToxicOnly = !showingToxicOnly;
+                        this.textContent = showingToxicOnly ? 'Show All Comments' : 'Show Toxic Comments Only';
+                        updateVisibility();
+                    });
+                </script>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+
+    <footer class="cyber-footer">
+        <div class="container">
+            <p>© 2024 ToxiScan | AI-Powered Comment Analysis</p>
+        </div>
+    </footer>
+
+    {% if toxic_results %}
+    <script>
+        const ctx = document.getElementById('toxicityChart').getContext('2d');
+        const stats = {{ stats|tojson|safe }};
+        
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(stats),
+                datasets: [{
+                    data: Object.values(stats),
+                    backgroundColor: [
+                        '#d32f2f',  // Severely Toxic
+                        '#f44336',  // Toxic
+                        '#4caf50'   // Non-Toxic
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#1a1a1a'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1,
+                layout: {
+                    padding: 20
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            color: '#ffffff',
+                            font: {
+                                family: 'Orbitron',
+                                size: 11
+                            },
+                            padding: 15
+                        }
+                    }
+                }
+            });
+    </script>
+    {% endif %}
+</body>
+</html>
